@@ -1,11 +1,11 @@
 services:
   - type: web
-    name: discord-bot
+    name: discord-logger
     runtime: python
     region: oregon
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: python bot.py
+    startCommand: gunicorn combined:app --bind 0.0.0.0:$PORT --workers 1
     envVars:
       - key: DISCORD_TOKEN
         sync: false
@@ -13,21 +13,6 @@ services:
         fromDatabase:
           name: discord-logs-db
           property: connectionString
-
-  - type: web
-    name: discord-api
-    runtime: python
-    region: oregon
-    plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn api:app --bind 0.0.0.0:$PORT
-    envVars:
-      - key: DATABASE_URL
-        fromDatabase:
-          name: discord-logs-db
-          property: connectionString
-      - key: FLASK_DEBUG
-        value: "false"
 
 databases:
   - name: discord-logs-db
