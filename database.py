@@ -8,29 +8,42 @@ from datetime import datetime
 import os
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Use SQLite for Render free tier
+USE_SQLITE = os.environ.get('USE_SQLITE', 'true').lower() == 'true'
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
-# Handle Render PostgreSQL URL
-if DATABASE_URL and DATABASE_URL.startswith('postgres://'):
-    DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
-
-# Fallback to SQLite for local development
-if not DATABASE_URL:
-    DATABASE_URL = f'sqlite:///{os.path.join(BASE_DIR, "discord_logs.db")}'
-
-# Create engine with appropriate settings
-if DATABASE_URL.startswith('sqlite'):
-    engine = create_engine(DATABASE_URL, echo=False, connect_args={"check_same_thread": False})
+if USE_SQLITE or not DATABASE_URL:
+    # Use SQLite in /tmp for Render (writable)
+    DATABASE_URL = f'sqlite:////tmp/discord_logs.db'
+    print("✅ Using SQLite database at /tmp/discord_logs.db")
 else:
-    engine = create_engine(DATABASE_URL, echo=False, pool_pre_ping=True, pool_recycle=3600)
+    # Handle PostgreSQL URL
+    if DATABASE_URL.startswith('postgres://'):
+        DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+    print("✅ Using PostgreSQL database")
+
+# Create engine
+if DATABASE_URL.startswith('sqlite'):
+    engine = create_engine(
+        DATABASE_URL, 
+        echo=False, 
+        connect_args={"check_same_thread": False}
+    )
+else:
+    engine = create_engine(
+        DATABASE_URL, 
+        echo=False, 
+        pool_pre_ping=True, 
+        pool_recycle=3600
+    )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-
 class Message(Base):
     __tablename__ = 'messages'
-
+    
     id = Column(Integer, primary_key=True, autoincrement=True)
     message_id = Column(String(50), unique=True, nullable=False, index=True)
     channel_id = Column(String(50), nullable=False, index=True)
@@ -54,13 +67,13 @@ class Message(Base):
     reply_to_message_id = Column(String(50), nullable=True, index=True)
     reply_to_author = Column(String(100), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
-
+    
     __table_args__ = (
         Index('idx_channel_timestamp', 'channel_id', 'timestamp'),
         Index('idx_guild_timestamp', 'guild_id', 'timestamp'),
         Index('idx_author_timestamp', 'author_id', 'timestamp'),
     )
-
+    
     def to_dict(self):
         return {
             'id': self.id,
@@ -88,10 +101,9 @@ class Message(Base):
             'reply_to_author': self.reply_to_author,
         }
 
-
 class Attachment(Base):
     __tablename__ = 'attachments'
-
+    
     id = Column(Integer, primary_key=True, autoincrement=True)
     message_id = Column(String(50), ForeignKey('messages.message_id'), nullable=False, index=True)
     attachment_id = Column(String(50), nullable=True)
@@ -101,7 +113,7 @@ class Attachment(Base):
     size = Column(Integer, nullable=True)
     proxy_url = Column(String(1000), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
-
+    
     def to_dict(self):
         return {
             'id': self.id,
@@ -114,16 +126,15 @@ class Attachment(Base):
             'proxy_url': self.proxy_url
         }
 
-
 class EditedMessage(Base):
     __tablename__ = 'edited_messages'
-
+    
     id = Column(Integer, primary_key=True, autoincrement=True)
     message_id = Column(String(50), ForeignKey('messages.message_id'), nullable=False, index=True)
     old_content = Column(Text, nullable=True)
     new_content = Column(Text, nullable=True)
     edited_at = Column(DateTime, default=datetime.utcnow, index=True)
-
+    
     def to_dict(self):
         return {
             'id': self.id,
@@ -133,10 +144,9 @@ class EditedMessage(Base):
             'edited_at': self.edited_at.isoformat() if self.edited_at else None
         }
 
-
 class DeletedMessage(Base):
     __tablename__ = 'deleted_messages'
-
+    
     id = Column(Integer, primary_key=True, autoincrement=True)
     message_id = Column(String(50), unique=True, nullable=False, index=True)
     channel_id = Column(String(50), nullable=False, index=True)
@@ -151,7 +161,7 @@ class DeletedMessage(Base):
     deleted_at = Column(DateTime, default=datetime.utcnow, index=True)
     has_attachments = Column(Boolean, default=False)
     reply_to_message_id = Column(String(50), nullable=True)
-
+    
     def to_dict(self):
         return {
             'id': self.id,
@@ -169,13 +179,16 @@ class DeletedMessage(Base):
             'reply_to_message_id': self.reply_to_message_id
         }
 
-
 def init_db():
+    """Initialize database tables"""
     Base.metadata.create_all(bind=engine)
+    print("✅ Database tables created/verified")
 
 def get_db():
+    """Get database session"""
     return SessionLocal()
 
 def close_db(db):
+    """Close database session"""
     if db:
         db.close()
