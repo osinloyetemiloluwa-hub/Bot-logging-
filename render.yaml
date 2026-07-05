@@ -1,8 +1,4 @@
-# Render Blueprint - Discord Logger Bot
-# Both services run as web services (free plan limitation)
-
 services:
-  # Discord Bot - Running as web service with keep-alive
   - type: web
     name: discord-bot
     env: python
@@ -17,11 +13,8 @@ services:
         fromDatabase:
           name: discord-logs-db
           property: connectionString
-      - key: PYTHON_VERSION
-        value: 3.11.0
     healthCheckPath: /health
 
-  # Flask API - Web service
   - type: web
     name: discord-api
     env: python
@@ -34,10 +27,6 @@ services:
         fromDatabase:
           name: discord-logs-db
           property: connectionString
-      - key: FLASK_DEBUG
-        value: false
-      - key: PYTHON_VERSION
-        value: 3.11.0
     healthCheckPath: /api/health
 
 databases:
