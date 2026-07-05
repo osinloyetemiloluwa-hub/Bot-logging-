@@ -1,8 +1,6 @@
-# Core Dependencies
 discord.py==2.3.2
 PyNaCl==1.5.0
 SQLAlchemy==2.0.23
-psycopg2-binary==2.9.9
 Flask==3.0.0
 flask-cors==4.0.0
 gunicorn==21.2.0
