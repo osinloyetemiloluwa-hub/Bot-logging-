@@ -1,5 +1,6 @@
 """
 Discord Bot - Message Logger
+Logs messages, edits, deletes, attachments, and replies
 """
 
 import discord
@@ -7,13 +8,8 @@ from discord import Intents
 from datetime import datetime
 import json
 import logging
-import os
-import threading
-import traceback
-from flask import Flask, jsonify
 from database import Message, Attachment, EditedMessage, DeletedMessage, get_db, close_db, init_db
 
-# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='[%(asctime)s] %(levelname)s: %(message)s',
@@ -21,28 +17,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Flask app for health checks
-app = Flask(__name__)
-
-@app.route('/health')
-def health_check():
-    return jsonify({
-        'status': 'healthy',
-        'service': 'Discord Bot',
-        'timestamp': datetime.utcnow().isoformat()
-    })
-
-@app.route('/')
-def index():
-    return jsonify({
-        'service': 'Discord Logger Bot',
-        'status': 'running',
-        'version': '1.0.0'
-    })
-
-def run_web_server():
-    port = int(os.environ.get('PORT', 10000))
-    app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
 
 class MessageLoggerBot(discord.Client):
     def __init__(self):
@@ -55,12 +29,13 @@ class MessageLoggerBot(discord.Client):
         super().__init__(intents=intents)
 
     async def on_ready(self):
-        logger.info(f'✅ Bot logged in as {self.user}')
+        logger.info(f'Bot logged in as {self.user}')
         logger.info(f'Bot ID: {self.user.id}')
         logger.info(f'Total servers: {len(self.guilds)}')
+        logger.info('Bot is ready and listening for messages!')
 
     async def on_message(self, message):
-        if message.author.bot:
+        if message.author.bot and False:
             return
         if message.type != discord.MessageType.default:
             return
@@ -69,6 +44,16 @@ class MessageLoggerBot(discord.Client):
         try:
             mentioned_users = [str(m.id) for m in message.mentions]
             mentioned_roles = [str(r.id) for r in message.role_mentions]
+
+            reply_to_message_id = None
+            reply_to_author = None
+            if message.reference and message.reference.message_id:
+                try:
+                    referenced_msg = await message.channel.fetch_message(message.reference.message_id)
+                    reply_to_message_id = str(referenced_msg.id)
+                    reply_to_author = str(referenced_msg.author)
+                except Exception:
+                    reply_to_message_id = str(message.reference.message_id)
 
             msg_record = Message(
                 message_id=str(message.id),
@@ -88,6 +73,8 @@ class MessageLoggerBot(discord.Client):
                 has_attachments=len(message.attachments) > 0,
                 has_embed=len(message.embeds) > 0,
                 has_reactions=len(message.reactions) > 0,
+                reply_to_message_id=reply_to_message_id,
+                reply_to_author=reply_to_author
             )
             db.add(msg_record)
 
@@ -104,7 +91,7 @@ class MessageLoggerBot(discord.Client):
                 db.add(att_record)
 
             db.commit()
-            logger.info(f'Logged message {message.id} from {message.author}')
+            logger.info(f'Logged message {message.id} from {message.author} in #{message.channel}')
 
         except Exception as e:
             logger.error(f'Error logging message: {e}')
@@ -114,6 +101,8 @@ class MessageLoggerBot(discord.Client):
 
     async def on_message_edit(self, before, after):
         if before.content == after.content:
+            return
+        if after.type != discord.MessageType.default:
             return
 
         db = get_db()
@@ -132,13 +121,17 @@ class MessageLoggerBot(discord.Client):
                 db.add(edit_record)
                 db.commit()
                 logger.info(f'Logged edit for message {after.id}')
+
         except Exception as e:
-            logger.error(f'Error logging edit: {e}')
+            logger.error(f'Error logging message edit: {e}')
             db.rollback()
         finally:
             close_db(db)
 
     async def on_message_delete(self, message):
+        if message.type != discord.MessageType.default:
+            return
+
         db = get_db()
         try:
             msg_record = db.query(Message).filter_by(message_id=str(message.id)).first()
@@ -155,6 +148,7 @@ class MessageLoggerBot(discord.Client):
                 content=message.content,
                 original_timestamp=message.created_at,
                 has_attachments=len(message.attachments) > 0,
+                reply_to_message_id=msg_record.reply_to_message_id if msg_record else None
             )
             db.add(deleted_record)
 
@@ -165,25 +159,27 @@ class MessageLoggerBot(discord.Client):
             logger.info(f'Logged deletion of message {message.id}')
 
         except Exception as e:
-            logger.error(f'Error logging deletion: {e}')
+            logger.error(f'Error logging message deletion: {e}')
             db.rollback()
         finally:
             close_db(db)
 
+
 def run_bot(token: str):
     init_db()
-    logger.info('✅ Database initialized')
-    
-    web_thread = threading.Thread(target=run_web_server, daemon=True)
-    web_thread.start()
-    logger.info('✅ Web server started')
-    
+    logger.info('Database initialized')
     bot = MessageLoggerBot()
     bot.run(token)
 
+
 if __name__ == '__main__':
+    import os
+    from dotenv import load_dotenv
+    load_dotenv()
+
     DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
     if not DISCORD_TOKEN:
-        logger.error('❌ DISCORD_TOKEN not found!')
+        logger.error('DISCORD_TOKEN not found! Please set it in .env file')
         exit(1)
+
     run_bot(DISCORD_TOKEN)
