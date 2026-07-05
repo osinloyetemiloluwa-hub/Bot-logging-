@@ -1,4 +1,3 @@
-startCommand: python debug.py && python bot.py
 # Render Blueprint - Discord Logger Bot
 # Both services run as web services (free plan limitation)
 
