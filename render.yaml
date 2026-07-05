@@ -9,10 +9,8 @@ services:
     envVars:
       - key: DISCORD_TOKEN
         sync: false
-      - key: DATABASE_URL
-        fromDatabase:
-          name: discord-logs-db
-          property: connectionString
+      - key: USE_SQLITE
+        value: "true"
     healthCheckPath: /health
 
   - type: web
@@ -21,17 +19,10 @@ services:
     region: oregon
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn api:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120
+    startCommand: gunicorn --bind 0.0.0.0:$PORT api:app
     envVars:
-      - key: DATABASE_URL
-        fromDatabase:
-          name: discord-logs-db
-          property: connectionString
-    healthCheckPath: /api/health
+      - key: USE_SQLITE
+        value: "true"
+    healthCheckPath: /
 
-databases:
-  - name: discord-logs-db
-    plan: free
-    databaseName: discord_logs
-    user: discord_user
-    ipAllowList: []
+# No databases section
