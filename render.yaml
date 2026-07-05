@@ -3,7 +3,8 @@
 
 services:
   # Discord Bot Worker
-  - name: discord-bot
+  - type: worker
+    name: discord-bot
     env: python
     region: oregon
     plan: free
@@ -20,7 +21,8 @@ services:
         value: 3.11.0
 
   # Flask API
-  - name: discord-api
+  - type: web
+    name: discord-api
     env: python
     region: oregon
     plan: free
@@ -42,4 +44,4 @@ databases:
     plan: free
     databaseName: discord_logs
     user: discord_user
-    ipAllowList: []  # Required for free tier
+    ipAllowList: []
