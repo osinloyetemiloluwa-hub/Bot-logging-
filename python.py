@@ -1,6 +1,6 @@
 """
 Discord Bot - Message Logger
-Logs messages, edits, deletes, attachments, and replies to SQLite database
+Logs messages, edits, deletes, attachments, and replies to database
 """
 
 import discord
@@ -9,8 +9,10 @@ from datetime import datetime
 import json
 import logging
 import os
-from database import Message, Attachment, EditedMessage, DeletedMessage, get_db, close_db, init_db
+import threading
 import traceback
+from flask import Flask, jsonify
+from database import Message, Attachment, EditedMessage, DeletedMessage, get_db, close_db, init_db
 
 # Configure logging
 logging.basicConfig(
@@ -19,6 +21,31 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 logger = logging.getLogger(__name__)
+
+# Flask app for health checks
+app = Flask(__name__)
+
+@app.route('/health')
+def health_check():
+    """Health check endpoint for Render"""
+    return jsonify({
+        'status': 'healthy',
+        'service': 'Discord Bot',
+        'timestamp': datetime.utcnow().isoformat()
+    })
+
+@app.route('/')
+def index():
+    return jsonify({
+        'service': 'Discord Logger Bot',
+        'status': 'running',
+        'version': '1.0.0'
+    })
+
+def run_web_server():
+    """Run Flask web server in a separate thread"""
+    port = int(os.environ.get('PORT', 10000))
+    app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
 
 
 class MessageLoggerBot(discord.Client):
@@ -173,9 +200,16 @@ class MessageLoggerBot(discord.Client):
 
 
 def run_bot(token: str):
+    """Run the Discord bot"""
     init_db()
     logger.info('Database initialized')
     
+    # Start web server in background thread
+    web_thread = threading.Thread(target=run_web_server, daemon=True)
+    web_thread.start()
+    logger.info('Web server started for health checks')
+    
+    # Run Discord bot
     bot = MessageLoggerBot()
     try:
         bot.run(token)
