@@ -1,9 +1,9 @@
 # Render Blueprint - Discord Logger Bot
-# Deploy both bot and API as separate services
+# Both services run as web services (free plan limitation)
 
 services:
-  # Discord Bot Worker
-  - type: worker
+  # Discord Bot - Running as web service with keep-alive
+  - type: web
     name: discord-bot
     env: python
     region: oregon
@@ -19,8 +19,9 @@ services:
           property: connectionString
       - key: PYTHON_VERSION
         value: 3.11.0
+    healthCheckPath: /health
 
-  # Flask API
+  # Flask API - Web service
   - type: web
     name: discord-api
     env: python
