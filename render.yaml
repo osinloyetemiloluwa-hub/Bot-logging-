@@ -1,13 +1,7 @@
-# Render Blueprint - Discord Logger Bot
-
-database:
-  name: discord-logs-db
-  plan: free
-  databaseName: discord_logs
-
 services:
   - type: worker
     name: discord-bot
+    runtime: python
     region: oregon
     plan: free
     buildCommand: pip install -r requirements.txt
@@ -22,6 +16,7 @@ services:
 
   - type: web
     name: discord-api
+    runtime: python
     region: oregon
     plan: free
     buildCommand: pip install -r requirements.txt
@@ -33,3 +28,8 @@ services:
           property: connectionString
       - key: FLASK_DEBUG
         value: "false"
+
+databases:
+  - name: discord-logs-db
+    plan: free
+    databaseName: discord_logs
